@@ -10,6 +10,7 @@
             --bg-card: #1c2028;
             --accent: #5b8dd9;
             --accent-hover: #4a7ac2;
+            --success: #4caf50;
             --text-main: #e0e0e0;
             --text-muted: #888888;
             --border: #2a2f3a;
@@ -25,15 +26,17 @@
             flex-direction: column;
             height: 100vh;
             box-sizing: border-box;
+            overflow-y: auto;
         }
         
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             padding-bottom: 15px;
             border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
         }
         
         h1 {
@@ -60,6 +63,7 @@
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
+            flex-shrink: 0;
         }
         
         .card h2 {
@@ -73,6 +77,7 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            margin-bottom: 10px;
         }
         
         select {
@@ -91,6 +96,11 @@
             border-color: var(--accent);
         }
         
+        select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
         button {
             background-color: var(--accent);
             color: white;
@@ -103,8 +113,14 @@
             transition: background-color 0.2s;
         }
         
-        button:hover {
+        button:hover:not(:disabled) {
             background-color: var(--accent-hover);
+        }
+        
+        button:disabled {
+            background-color: var(--border);
+            color: var(--text-muted);
+            cursor: not-allowed;
         }
         
         button.secondary {
@@ -113,7 +129,7 @@
             color: var(--text-main);
         }
         
-        button.secondary:hover {
+        button.secondary:hover:not(:disabled) {
             background-color: #252a36;
         }
         
@@ -143,6 +159,47 @@
             color: var(--text-main);
             font-family: monospace;
         }
+
+        /* Progress Bar Styles */
+        .progress-container {
+            display: none;
+            margin-top: 15px;
+        }
+        
+        .progress-container.visible {
+            display: block;
+        }
+        
+        .progress-bar-bg {
+            background-color: var(--bg-deep);
+            border-radius: 6px;
+            height: 12px;
+            width: 100%;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        
+        .progress-bar-fill {
+            background-color: var(--accent);
+            height: 100%;
+            width: 0%;
+            transition: width 0.2s ease;
+        }
+        
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+        
+        #flash-btn {
+            width: 100%;
+            margin-top: 15px;
+            padding: 12px;
+            font-size: 15px;
+        }
     </style>
 </head>
 <body>
@@ -157,7 +214,7 @@
             <select id="drive-select">
                 <option value="">Scanning drives...</option>
             </select>
-            <button class="secondary" onclick="refreshDrives()">↻ Refresh</button>
+            <button class="secondary" onclick="refreshDrives()" id="btn-refresh">↻ Refresh</button>
         </div>
         
         <div id="drive-details" class="drive-details">
@@ -176,8 +233,39 @@
         </div>
     </div>
 
+    <div class="card">
+        <h2>2. Target Device & OS</h2>
+        <div class="control-group">
+            <select id="device-select" disabled>
+                <option value="">Loading devices...</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <select id="os-select" disabled>
+                <option value="">Select a device first</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>3. Download & Flash</h2>
+        <button id="flash-btn" onclick="startDownloadAndFlash()" disabled>Download & Flash OS</button>
+        
+        <div id="progress-container" class="progress-container">
+            <div class="progress-bar-bg">
+                <div id="progress-fill" class="progress-bar-fill"></div>
+            </div>
+            <div class="progress-text">
+                <span id="progress-status">Waiting...</span>
+                <span id="progress-percent">0%</span>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentDrives = [];
+        let catalogData = null;
+        let selectedOsData = null;
 
         window.addEventListener('pywebviewready', function() {
             // Load version
@@ -188,9 +276,31 @@
             // Initial drive scan
             refreshDrives();
             
-            // Handle select change
+            // Load OS Catalog
+            loadCatalog();
+            
+            // Event Listeners
             document.getElementById('drive-select').addEventListener('change', function(e) {
                 updateDriveDetails(e.target.value);
+                validateFlashReady();
+            });
+            
+            document.getElementById('device-select').addEventListener('change', function(e) {
+                populateOsSelect(e.target.value);
+                validateFlashReady();
+            });
+            
+            document.getElementById('os-select').addEventListener('change', function(e) {
+                const deviceId = document.getElementById('device-select').value;
+                const osId = e.target.value;
+                
+                if (deviceId && osId && catalogData) {
+                    const device = catalogData.devices.find(d => d.id === deviceId);
+                    selectedOsData = device.oses.find(o => o.id === osId);
+                } else {
+                    selectedOsData = null;
+                }
+                validateFlashReady();
             });
         });
 
@@ -219,6 +329,7 @@
                 } else {
                     select.innerHTML = `<option value="">Error: ${response.message}</option>`;
                 }
+                validateFlashReady();
             }).catch(function(err) {
                 select.innerHTML = '<option value="">Failed to communicate with backend</option>';
             });
@@ -238,6 +349,116 @@
                 document.getElementById('detail-total').innerText = drive.total_gb + ' GB';
                 detailsPanel.classList.add('visible');
             }
+        }
+        
+        function loadCatalog() {
+            const deviceSelect = document.getElementById('device-select');
+            
+            pywebview.api.get_os_catalog().then(function(response) {
+                if (response.ok) {
+                    catalogData = response.data;
+                    deviceSelect.innerHTML = '<option value="">-- Select Device --</option>';
+                    
+                    catalogData.devices.forEach(device => {
+                        const option = document.createElement('option');
+                        option.value = device.id;
+                        option.innerText = device.name;
+                        deviceSelect.appendChild(option);
+                    });
+                    
+                    deviceSelect.disabled = false;
+                } else {
+                    deviceSelect.innerHTML = `<option value="">Error loading catalog</option>`;
+                }
+            });
+        }
+        
+        function populateOsSelect(deviceId) {
+            const osSelect = document.getElementById('os-select');
+            selectedOsData = null;
+            
+            if (!deviceId) {
+                osSelect.innerHTML = '<option value="">Select a device first</option>';
+                osSelect.disabled = true;
+                return;
+            }
+            
+            const device = catalogData.devices.find(d => d.id === deviceId);
+            if (device && device.oses.length > 0) {
+                osSelect.innerHTML = '<option value="">-- Select OS --</option>';
+                device.oses.forEach(os => {
+                    const option = document.createElement('option');
+                    option.value = os.id;
+                    option.innerText = os.name;
+                    osSelect.appendChild(option);
+                });
+                osSelect.disabled = false;
+            } else {
+                osSelect.innerHTML = '<option value="">No OS available for this device</option>';
+                osSelect.disabled = true;
+            }
+        }
+        
+        function validateFlashReady() {
+            const drive = document.getElementById('drive-select').value;
+            const os = document.getElementById('os-select').value;
+            const btn = document.getElementById('flash-btn');
+            
+            if (drive && os && selectedOsData) {
+                btn.disabled = false;
+                btn.innerText = `Download & Flash ${selectedOsData.name}`;
+            } else {
+                btn.disabled = true;
+                btn.innerText = "Download & Flash OS";
+            }
+        }
+        
+        function startDownloadAndFlash() {
+            if (!selectedOsData) return;
+            
+            // Disable UI
+            document.getElementById('drive-select').disabled = true;
+            document.getElementById('device-select').disabled = true;
+            document.getElementById('os-select').disabled = true;
+            document.getElementById('btn-refresh').disabled = true;
+            document.getElementById('flash-btn').disabled = true;
+            
+            // Show progress
+            document.getElementById('progress-container').classList.add('visible');
+            
+            pywebview.api.download_os(selectedOsData.repo, selectedOsData.asset_pattern).then(function(response) {
+                if (!response.ok) {
+                    updateDownloadProgress(0, `Error: ${response.message}`);
+                    resetUI();
+                }
+            });
+        }
+        
+        // Called from Python via window.evaluate_js
+        function updateDownloadProgress(percent, statusText) {
+            document.getElementById('progress-fill').style.width = `${percent}%`;
+            document.getElementById('progress-percent').innerText = `${percent}%`;
+            document.getElementById('progress-status').innerText = statusText;
+            
+            if (percent === 100 && statusText.includes('Error')) {
+                document.getElementById('progress-fill').style.backgroundColor = '#ff3333';
+                resetUI();
+            }
+        }
+        
+        // Called from Python via window.evaluate_js when download finishes
+        function onDownloadComplete(filepath) {
+            updateDownloadProgress(100, `Download complete. Flash module pending...`);
+            // TODO: Call python flash endpoint here
+            setTimeout(resetUI, 3000); // Temporary reset for testing
+        }
+        
+        function resetUI() {
+            document.getElementById('drive-select').disabled = false;
+            document.getElementById('device-select').disabled = false;
+            document.getElementById('os-select').disabled = false;
+            document.getElementById('btn-refresh').disabled = false;
+            validateFlashReady();
         }
     </script>
 </body>

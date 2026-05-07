@@ -1,0 +1,48 @@
+{
+  "devices": [
+    {
+      "id": "miyoo_mini_plus",
+      "name": "Miyoo Mini+",
+      "oses": [
+        {
+          "id": "onion_os",
+          "name": "OnionOS",
+          "type": "github_release",
+          "repo": "OnionUI/Onion",
+          "asset_pattern": "Onion.*\\.zip",
+          "flash_method": "zip_extract"
+        },
+        {
+          "id": "minui",
+          "name": "MinUI",
+          "type": "github_release",
+          "repo": "shauninman/MinUI",
+          "asset_pattern": "MinUI.*\\.zip",
+          "flash_method": "zip_extract"
+        }
+      ]
+    },
+    {
+      "id": "trimui_smart_pro",
+      "name": "TrimUI Smart Pro",
+      "oses": [
+        {
+          "id": "knulli",
+          "name": "Knulli",
+          "type": "github_release",
+          "repo": "knulli-cfw/distribution",
+          "asset_pattern": "knulli.*tsp.*\\.img\\.gz",
+          "flash_method": "raw_write"
+        },
+        {
+          "id": "crossmix",
+          "name": "CrossMix-OS",
+          "type": "github_release",
+          "repo": "cizia64/CrossMix-OS",
+          "asset_pattern": "CrossMix.*\\.zip",
+          "flash_method": "zip_extract"
+        }
+      ]
+    }
+  ]
+}
