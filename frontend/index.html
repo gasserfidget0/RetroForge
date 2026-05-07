@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RetroForge</title>
+    <style>
+        body {
+            background-color: #0f1117;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        h1 {
+            color: #5b8dd9;
+        }
+        #version {
+            color: #888;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <h1>RetroForge</h1>
+    <p>SD Card OS Configurator for Retro Handhelds</p>
+    <div id="version">Loading version...</div>
+
+    <script>
+        window.addEventListener('pywebviewready', function() {
+            pywebview.api.get_version().then(function(version) {
+                document.getElementById('version').innerText = version;
+            });
+        });
+    </script>
+</body>
+</html>
