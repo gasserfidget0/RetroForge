@@ -2,39 +2,243 @@
 <html>
 <head>
     <title>RetroForge</title>
+    <meta charset="utf-8">
     <style>
+        :root {
+            --bg-deep: #0f1117;
+            --bg-panel: #161a21;
+            --bg-card: #1c2028;
+            --accent: #5b8dd9;
+            --accent-hover: #4a7ac2;
+            --text-main: #e0e0e0;
+            --text-muted: #888888;
+            --border: #2a2f3a;
+        }
+        
         body {
-            background-color: #0f1117;
-            color: #e0e0e0;
+            background-color: var(--bg-deep);
+            color: var(--text-main);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 30px;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
             height: 100vh;
+            box-sizing: border-box;
         }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+        
         h1 {
-            color: #5b8dd9;
+            color: var(--accent);
+            margin: 0;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
+        
         #version {
-            color: #888;
-            font-size: 0.9em;
+            color: var(--text-muted);
+            font-size: 0.85em;
+            background: var(--bg-card);
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+        
+        .card {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 16px;
+            color: var(--text-main);
+        }
+        
+        .control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        select {
+            flex-grow: 1;
+            background-color: var(--bg-card);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+        }
+        
+        select:focus {
+            border-color: var(--accent);
+        }
+        
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+        
+        button.secondary {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+        }
+        
+        button.secondary:hover {
+            background-color: #252a36;
+        }
+        
+        .drive-details {
+            margin-top: 15px;
+            padding: 15px;
+            background-color: var(--bg-deep);
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--text-muted);
+            display: none;
+        }
+        
+        .drive-details.visible {
+            display: block;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .detail-row:last-child {
+            margin-bottom: 0;
+        }
+        .detail-value {
+            color: var(--text-main);
+            font-family: monospace;
         }
     </style>
 </head>
 <body>
-    <h1>RetroForge</h1>
-    <p>SD Card OS Configurator for Retro Handhelds</p>
-    <div id="version">Loading version...</div>
+    <div class="header">
+        <h1>⚡ RetroForge</h1>
+        <div id="version">Loading...</div>
+    </div>
+
+    <div class="card">
+        <h2>1. Target SD Card</h2>
+        <div class="control-group">
+            <select id="drive-select">
+                <option value="">Scanning drives...</option>
+            </select>
+            <button class="secondary" onclick="refreshDrives()">↻ Refresh</button>
+        </div>
+        
+        <div id="drive-details" class="drive-details">
+            <div class="detail-row">
+                <span>File System:</span>
+                <span id="detail-fs" class="detail-value">-</span>
+            </div>
+            <div class="detail-row">
+                <span>Free Space:</span>
+                <span id="detail-free" class="detail-value">-</span>
+            </div>
+            <div class="detail-row">
+                <span>Total Size:</span>
+                <span id="detail-total" class="detail-value">-</span>
+            </div>
+        </div>
+    </div>
 
     <script>
+        let currentDrives = [];
+
         window.addEventListener('pywebviewready', function() {
+            // Load version
             pywebview.api.get_version().then(function(version) {
                 document.getElementById('version').innerText = version;
             });
+            
+            // Initial drive scan
+            refreshDrives();
+            
+            // Handle select change
+            document.getElementById('drive-select').addEventListener('change', function(e) {
+                updateDriveDetails(e.target.value);
+            });
         });
+
+        function refreshDrives() {
+            const select = document.getElementById('drive-select');
+            select.innerHTML = '<option value="">Scanning drives...</option>';
+            document.getElementById('drive-details').classList.remove('visible');
+            
+            pywebview.api.get_drives().then(function(response) {
+                if (response.ok) {
+                    currentDrives = response.data;
+                    select.innerHTML = '';
+                    
+                    if (currentDrives.length === 0) {
+                        select.innerHTML = '<option value="">No removable drives found</option>';
+                        return;
+                    }
+                    
+                    select.innerHTML = '<option value="">-- Select an SD Card --</option>';
+                    currentDrives.forEach(drive => {
+                        const option = document.createElement('option');
+                        option.value = drive.letter;
+                        option.innerText = drive.description;
+                        select.appendChild(option);
+                    });
+                } else {
+                    select.innerHTML = `<option value="">Error: ${response.message}</option>`;
+                }
+            }).catch(function(err) {
+                select.innerHTML = '<option value="">Failed to communicate with backend</option>';
+            });
+        }
+        
+        function updateDriveDetails(letter) {
+            const detailsPanel = document.getElementById('drive-details');
+            if (!letter) {
+                detailsPanel.classList.remove('visible');
+                return;
+            }
+            
+            const drive = currentDrives.find(d => d.letter === letter);
+            if (drive) {
+                document.getElementById('detail-fs').innerText = drive.file_system;
+                document.getElementById('detail-free').innerText = drive.free_gb + ' GB';
+                document.getElementById('detail-total').innerText = drive.total_gb + ' GB';
+                detailsPanel.classList.add('visible');
+            }
+        }
     </script>
 </body>
 </html>

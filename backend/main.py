@@ -1,6 +1,7 @@
 import webview
 import os
 import sys
+from sd_detector import get_removable_drives
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -10,10 +11,17 @@ def get_base_path():
 class Api:
     def get_version(self):
         try:
-            with open(os.path.join(get_base_path(), 'VERSION'), 'r') as f:
+            with open(os.path.join(get_base_path(), 'VERSION'), 'r', encoding='utf-8') as f:
                 return f.read().strip()
         except:
             return "v1.0.0 'Apple'"
+            
+    def get_drives(self):
+        try:
+            drives = get_removable_drives()
+            return {"ok": True, "data": drives}
+        except Exception as e:
+            return {"ok": False, "error": "DRIVE_SCAN_FAILED", "message": str(e)}
 
 if __name__ == '__main__':
     api = Api()
@@ -23,8 +31,8 @@ if __name__ == '__main__':
         'RetroForge', 
         url=html_path,
         js_api=api,
-        width=1000, 
-        height=700,
+        width=900, 
+        height=650,
         min_size=(800, 600),
         background_color='#0f1117'
     )
